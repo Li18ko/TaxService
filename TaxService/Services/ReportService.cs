@@ -19,7 +19,7 @@ public class ReportService {
         _jwtKey = jwtKey;
     }
 
-    public async Task<bool> SubmitReportAsync(int userId, ReportSubmissionDto reportSubmission) {
+    public async Task<int> SubmitReportAsync(int userId, ReportSubmissionDto reportSubmission) {
         try {
             Console.WriteLine(reportSubmission.TaxPayerID);
             Console.WriteLine(reportSubmission.ReportType);
@@ -58,12 +58,12 @@ public class ReportService {
 
             await _context.SaveChangesAsync();
 
-            return true;
+            return report.Reportid;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Ошибка при отправке отчета: {ex.Message}");
-            return false;
+            return -1;
         }
     }
     
@@ -124,6 +124,16 @@ public class ReportService {
             Console.WriteLine($"Ошибка при получении отчетов: {ex.Message}");
             throw new Exception("Произошла ошибка при получении отчетов");
         }
+    }
+
+    public async Task<bool> UpdateReportStatusAsync(int reportId, string status)
+    {
+        var report = await _context.Reports.FindAsync(reportId);
+        if (report == null) return false;
+
+        report.Status = status;
+        await _context.SaveChangesAsync();
+        return true;
     }
 
 

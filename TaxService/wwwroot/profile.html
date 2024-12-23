@@ -282,7 +282,16 @@
             });
 
             if (response.ok) {
-                modal.hide();
+                const responseData = await response.json();
+                const reportId = responseData.reportId;
+                console.log("ID нового отчета:", reportId);
+                saveReportToStorage(reportId);
+                const updateTime = new Date().getTime() + 60000; // 1 минута (60000 мс)
+                localStorage.setItem(`report-${reportId}-updateTime`, updateTime);
+                console.log(updateTime)
+
+                modal.hide();  
+                startStatusUpdateTimer(reportId); 
             } else {
                 const errorDetails = await response.text();
                 console.error("Ошибка при отправке отчета:", errorDetails);
@@ -303,6 +312,104 @@
             document.getElementById("error-message").textContent = "Ошибка при выходе из системы.";
         }
     }
+
+    async function checkAndUpdateReportStatuses() {
+        const reports = getReportsFromStorage();  // Получаем список отчетов из localStorage
+
+        for (const report of reports) {
+            const updateTime = localStorage.getItem(`report-${report.id}-updateTime`);
+            const currentTime = new Date().getTime();
+
+            // Если время обновления наступило, обновляем статус
+            if (updateTime && currentTime >= updateTime) {
+                console.log(`Обновляем статус для отчета ${report.id}`);
+                await updateReportStatus(report.id, "Принято");
+            }
+        }
+    }
+
+    // Функция для получения отчетов из localStorage (если нужно)
+    function getReportsFromStorage() {
+        // Просто пример получения списка отчетов из localStorage
+        // В реальности вам нужно хранить id отчетов, чтобы получить информацию о них
+        const reports = [];
+        // Пример: добавляем отчет в список
+        // reports.push({id: 1});
+        return reports;
+    }
+
+    // Функция для обновления статуса отчета
+    async function updateReportStatus(reportId, status) {
+        const response = await fetch(`http://localhost:5212/api/reports/${reportId}/updateStatus`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                status: status
+            }),
+            credentials: "include"
+        });
+
+        return response;
+    }
+
+    // Функция для запуска таймера обновления статуса
+    async function startStatusUpdateTimer(reportId) {
+        console.log("Таймер на обновление статуса начат. Ожидайте 1 минуту...");
+
+        // Сохраняем информацию о времени обновления в localStorage
+        const currentTime = new Date().getTime();
+        console.log(currentTime)
+        const updateTime = currentTime + 60000;  // Время для обновления статуса (1 минута)
+        localStorage.setItem(`report-${reportId}-updateTime`, updateTime);
+
+        setTimeout(async () => {
+            console.log("Таймер завершен. Обновляем статус...");
+
+            // Обновляем статус на "Принято"
+            const statusUpdateResponse = await updateReportStatus(reportId, "Принято");
+
+            if (statusUpdateResponse.ok) {
+                console.log("Статус отчета обновлен на 'Принято'.");
+            } else {
+                const errorText = await statusUpdateResponse.text();
+                console.error("Ошибка при обновлении статуса:", errorText);
+            }
+        }, 60000);  // 1 минута
+    }
+    
+    
+    document.addEventListener("DOMContentLoaded", async () => {
+        const reports = getReportsFromStorage(); 
+
+        for (const report of reports) {
+            const updateTime = localStorage.getItem(`report-${report.id}-updateTime`);
+            const currentTime = new Date().getTime();
+
+            if (updateTime && currentTime >= updateTime) {
+                console.log(`Обновляем статус для отчета ${report.id}`);
+                await updateReportStatus(report.id, "Принято");
+
+                // Очистим запись в localStorage, так как статус уже обновлен
+                localStorage.removeItem(`report-${report.id}-updateTime`);
+            }
+        }
+    });
+
+
+
+    function getReportsFromStorage() {
+        let reports = JSON.parse(localStorage.getItem('reports')) || [];
+        return reports;
+    }
+
+    function saveReportToStorage(reportId) {
+        let reports = getReportsFromStorage();
+        reports.push({ id: reportId });
+        localStorage.setItem('reports', JSON.stringify(reports));
+    }
+
 
     // Обработчик событий
     document.addEventListener("DOMContentLoaded", getUserProfile);

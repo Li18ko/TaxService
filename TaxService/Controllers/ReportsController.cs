@@ -20,25 +20,16 @@ public class ReportsController: Controller {
     [HttpPost("submit")]
     public async Task<IActionResult> SubmitReport([FromForm] ReportSubmissionDto reportSubmission) {
         try {
-            var token = Request.Cookies["jwt"];
-            var principal = _reportService.ValidateJwtToken(token);
-            if (principal == null) {
-                return Unauthorized(new { Message = "Invalid token." });
-            }
-            var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim == null) {
-                return Unauthorized(new { Message = "User ID not found in token." });
-            }
-            var userId = int.Parse(userIdClaim.Value);
-            
+            var userId = GetUserIdFromToken();
             
             Console.WriteLine($"ReportType: {reportSubmission.ReportType}");
             Console.WriteLine($"Количество файлов: {reportSubmission.ReportFiles.Count}");
             
-            var result = await _reportService.SubmitReportAsync(userId, reportSubmission);
-            if (result) {
-                await _logService.LogUserAction(userId, "Пользователь успешно отправил отчет");
-                return Ok("Отчет успешно отправлен.");
+            var reportId = await _reportService.SubmitReportAsync(userId.Value, reportSubmission);
+            if (reportId > 0)
+            {
+                // Возвращаем ID только что созданного отчета
+                return Ok(new { reportId });
             }
 
             return BadRequest("Ошибка при отправке отчета.");
@@ -65,6 +56,36 @@ public class ReportsController: Controller {
             return StatusCode(500, new { Message = "Произошла ошибка на сервере." });
         }
     }
+    
+    [HttpPost("{reportId}/updateStatus")]
+    public async Task<IActionResult> UpdateReportStatus(int reportId, [FromBody] StatusUpdateDto statusUpdate) {
+        try {
+            var userId = GetUserIdFromToken();
+            if (userId == null) {
+                return Unauthorized(new { Message = "Invalid token." });
+            }
+
+            var updateSuccess = await _reportService.UpdateReportStatusAsync(reportId, statusUpdate.Status);
+            if (!updateSuccess) {
+                return NotFound(new { Message = "Report not found." });
+            }
+
+            return Ok(new { Message = "Status updated successfully." });
+        }
+        catch (Exception ex) {
+            return StatusCode(500, $"Произошла ошибка: {ex.Message}");
+        }
+    }
+    
+    private int? GetUserIdFromToken() {
+        var token = Request.Cookies["jwt"];
+        var principal = _reportService.ValidateJwtToken(token);
+        if (principal == null) return null;
+
+        var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier);
+        return userIdClaim != null ? int.Parse(userIdClaim.Value) : (int?)null;
+    }
+
 
 
 }
