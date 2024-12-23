@@ -19,8 +19,7 @@ public class UserController : ControllerBase {
     public async Task<IActionResult> RefreshToken()
     {
         var token = Request.Cookies["jwt"];
-        if (string.IsNullOrEmpty(token))
-        {
+        if (string.IsNullOrEmpty(token)) {
             return Unauthorized(new { Message = "No token provided." });
         }
 

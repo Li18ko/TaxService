@@ -40,15 +40,18 @@ public class AuthController : ControllerBase {
 
     
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout()
-    {
+    public async Task<IActionResult> Logout() {
         var token = Request.Cookies["jwt"];
-        if (string.IsNullOrEmpty(token))
-        {
+        if (string.IsNullOrEmpty(token)) {
             return Unauthorized(new { Message = "No active session found." });
         }
-
-        var email = _authService.ValidateJwtToken(token);
+        
+        var claimsPrincipal = _authService.ValidateJwtToken(token);
+        if (claimsPrincipal == null) {
+            return Unauthorized(new { Message = "Invalid token." });
+        }
+        var email = claimsPrincipal.FindFirst(ClaimTypes.Email)?.Value;
+        
         if (email == null) {
             return Unauthorized(new { Message = "Invalid token." });
         }

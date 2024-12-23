@@ -34,7 +34,6 @@ public class UserService {
         return user;
     }
     public async Task<IEnumerable<TaxPayerDto>> GetUserCompaniesAsync(int userId) {
-        Console.WriteLine(userId);
         var companies = await _context.Taxpayers
             .Where(tp => tp.Userid == userId)
             .Select(tp => new TaxPayerDto

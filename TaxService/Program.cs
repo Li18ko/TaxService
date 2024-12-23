@@ -28,7 +28,8 @@ builder.Services.AddScoped<AuthService>(provider =>
     new AuthService(builder.Configuration["JwtSettings:SecretKey"], provider.GetRequiredService<ApplicationDbContext>()));
 builder.Services.AddScoped<UserService>(provider => 
     new UserService(builder.Configuration["JwtSettings:SecretKey"], provider.GetRequiredService<ApplicationDbContext>()));
-builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<ReportService>(provider => 
+    new ReportService(builder.Configuration["JwtSettings:SecretKey"], provider.GetRequiredService<ApplicationDbContext>()));
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 

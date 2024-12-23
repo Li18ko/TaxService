@@ -38,9 +38,14 @@
         <p><strong>Почта:</strong> <span id="user-email">Загрузка...</span></p>
         <p><strong>ФИО:</strong> <span id="user-fullname">Загрузка...</span></p>
     </div>
-    <h3>Компании</h3>
     <div id="companies-list" class="mb-4">
+        <select id="company-select" class="form-select">
+            <option value="">Выберите компанию</option>
+        </select>
+        <button id="send-report-button" class="btn btn-primary mt-4" style="display: none;" onclick="openReportModal()">Отправить отчет</button>
+        <div id="company-documents" class="mt-4">
             
+        </div>
     </div>
     <button id="logout-button" class="btn btn-danger w-100">Выйти</button>
     <p id="error-message" class="text-danger text-center mt-3"></p>
@@ -61,7 +66,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="reportFile" class="form-label">Файлы отчета</label>
-                        <input type="file" class="form-control" id="reportFile" name="reportFile" accept=".pdf, .docx" multiple required>
+                        <input type="file" class="form-control" id="reportFile" name="reportFiles" accept=".pdf, .docx" multiple required>
                     </div>
                     <button type="submit" class="btn btn-primary">Отправить</button>
                 </form>
@@ -113,7 +118,6 @@
     }
 
     async function loadUserCompanies(userId) {
-        console.log(userId);
         const response = await fetch(`http://localhost:5212/api/user/companies/${userId}`, {
             method: "GET",
             credentials: "include",
@@ -126,49 +130,150 @@
             const companies = await response.json();
             console.log("Полученные компании:", companies);
 
-            if (companies.length === 0) {
-                document.getElementById("companies-list").innerHTML = "<p>У вас нет компаний.</p>";
+            const companySelect = document.getElementById("company-select");
+            const companyDocumentsContainer = document.getElementById("company-documents");
+            const sendReportButton = document.getElementById("send-report-button");
+
+            // Очистим старый список
+            companySelect.innerHTML = "<option value=''>Выберите компанию</option>";
+
+            // Если компаний нет, сообщим об этом
+            if (!companies || companies.length === 0) {
+                companySelect.innerHTML = "<option value=''>Нет компаний</option>";
+                companyDocumentsContainer.innerHTML = "<p>У вас нет компаний.</p>";
+                sendReportButton.style.display = "none"; // Скрываем кнопку, если нет компаний
                 return;
             }
-            const companiesList = document.getElementById("companies-list");
-            companiesList.innerHTML = ""; // Очищаем старые данные, если они есть
 
+            // Заполним выпадающий список компаниями
             companies.forEach(company => {
-                const companyCard = document.createElement("div");
-                companyCard.classList.add("card", "company-card");
+                const option = document.createElement("option");
+                option.value = company.taxPayerID;
+                option.textContent = company.companyName;
+                companySelect.appendChild(option);
+            });
 
-                console.log(company.сompanyName, company.address, company.taxPayerID);
-
-                companyCard.innerHTML = `
-                    <div class="card-body">
-                        <h5 class="card-title">${company.companyName}</h5>
-                        <p class="card-text">${company.address}</p>
-                        <button class="btn btn-primary" onclick="openReportModal(${company.taxPayerID})">Отправить отчет</button>
-                    </div>
-                `;
-
-                companiesList.appendChild(companyCard);
+            // Обработчик для изменения выбранной компании
+            companySelect.addEventListener("change", async function() {
+                const selectedCompanyId = companySelect.value;
+                if (selectedCompanyId) {
+                    await loadCompanyDocuments(selectedCompanyId);
+                    sendReportButton.style.display = "inline-block"; // Показываем кнопку отправки отчета
+                } else {
+                    companyDocumentsContainer.innerHTML = ""; // Очистим контейнер документов
+                    sendReportButton.style.display = "none"; // Скрываем кнопку, если нет выбора
+                }
             });
         } else {
             document.getElementById("error-message").textContent = "Не удалось загрузить компании.";
         }
     }
 
-    async function openReportModal(taxPayerID) {
+    async function loadCompanyDocuments(taxPayerID) {
+        const companyDocumentsContainer = document.getElementById("company-documents");
+        companyDocumentsContainer.innerHTML = "<p>Загрузка документов...</p>"; // Покажем сообщение о загрузке
+
+        try {
+            const documentsResponse = await fetch(`http://localhost:5212/api/reports/${taxPayerID}/documents`, {
+                method: "GET",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            });
+
+            if (documentsResponse.ok) {
+                const reports = await documentsResponse.json();
+                console.log("Полученные отчеты:", reports);
+
+                if (reports && reports.length > 0) {
+                    const documentsListElement = document.createElement("div");
+                    reports.forEach(report => {
+                        const reportItem = document.createElement("div");
+                        reportItem.classList.add("report-item");
+
+                        const reportInfo = `
+                    <div class="table-container" style="border: 2px solid #ddd; border-radius: 8px; padding: 15px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); margin-bottom: 20px;">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Поле</th>
+                                    <th>Значение</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Тип отчета</td>
+                                    <td>${report.reportType || "Не указан"}</td>
+                                </tr>
+                                <tr>
+                                    <td>Статус</td>
+                                    <td>${report.status || "Не указано"}</td>
+                                </tr>
+                                <tr>
+                                    <td>Дата подачи</td>
+                                    <td>${report.submissionDate ? new Date(report.submissionDate).toLocaleString('ru-RU') : "Не указана"}</td>
+                                </tr>
+                                <tr>
+                                    <td>Комментарий</td>
+                                    <td>${report.errorDescription || "Нет комментариев"}</td>
+                                </tr>
+                                <tr>
+                                    <td>Количество документов</td>
+                                    <td>${report.documents ? report.documents.length : 0}</td>
+                                </tr>
+                                
+                                ${report.documents && report.documents.length > 0 ? report.documents.map(doc => {
+                                                            const fileName = doc.filepath.split('\\').pop(); // Или .split('/').pop() для UNIX-подобных систем
+                                                            return `
+                                        <tr>
+                                            <td>Документ</td>
+                                            <td>
+                                                <a href="${doc.filepath}" target="_blank" >
+                                                    ${fileName}
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    `;
+                        }).join('') : `<tr><td colspan="2">Документов нет.</td></tr>`}
+
+                            </tbody>
+                        </table>
+                    </div>
+                    `;
+
+                        reportItem.innerHTML = reportInfo;
+                        documentsListElement.appendChild(reportItem);
+                    });
+
+                    companyDocumentsContainer.innerHTML = ""; // Очищаем старые данные
+                    companyDocumentsContainer.appendChild(documentsListElement);
+                } else {
+                    companyDocumentsContainer.innerHTML = "<p>Документов нет.</p>";
+                }
+            } else {
+                const errorText = await documentsResponse.text();
+                console.error("Ошибка загрузки документов:", errorText);
+                companyDocumentsContainer.innerHTML = "<p>Не удалось загрузить документы.</p>";
+            }
+        } catch (error) {
+            console.error("Ошибка при загрузке документов:", error.message);
+            companyDocumentsContainer.innerHTML = "<p>Произошла ошибка при загрузке документов.</p>";
+        }
+    }
+
+    async function openReportModal() {
         const modal = new bootstrap.Modal(document.getElementById('reportModal'));
         modal.show();
-
         const form = document.getElementById('reportForm');
+
         form.onsubmit = async function(event) {
             event.preventDefault();
             const formData = new FormData(event.target);
             const files = document.getElementById('reportFile').files;
-            for (let i = 0; i < files.length; i++) {
-                formData.append('reportFiles', files[i]);
-            }
+            const selectedCompanyId = document.getElementById("company-select").value;
 
-            // Добавляем taxPayerID в formData
-            formData.append("TaxPayerID", taxPayerID);
+            formData.append("TaxPayerID", selectedCompanyId);
 
             const response = await fetch("http://localhost:5212/api/reports/submit", {
                 method: "POST",
@@ -177,19 +282,15 @@
             });
 
             if (response.ok) {
-                alert("Отчет успешно отправлен.");
-                reportModal.hide();
+                modal.hide();
             } else {
                 const errorDetails = await response.text();
                 console.error("Ошибка при отправке отчета:", errorDetails);
-                alert("Ошибка при отправке отчета: " + errorDetails);
+                alert("Произошла ошибка при отправке отчета.");
             }
         };
     }
 
-
-
-    // Функция для выхода из системы
     async function logout() {
         const response = await fetch("http://localhost:5212/api/auth/logout", {
             method: "POST",
